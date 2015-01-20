@@ -36,7 +36,7 @@ u32 ZC_DealSessionOpt(ZC_MessageHead *pstruMsg, ZC_OptList *pstruOptList, u8 *pu
     u8 *pu8Key;
     u8 u8FindFlag = 0;
     u16 u16OptLen = 0;
-
+    u16 crc = 0;
 
     pstruSsession = pstruOptList->pstruSsession;
     u32ClientId = ZC_HTONL(pstruSsession->u32SsessionId);
@@ -67,15 +67,20 @@ u32 ZC_DealSessionOpt(ZC_MessageHead *pstruMsg, ZC_OptList *pstruOptList, u8 *pu
                     - (sizeof(ZC_MessageOptHead) + sizeof(ZC_SsessionInfo));
     
     pstruMsg->Payloadlen = ZC_HTONS(u16RealLen);
-    
-    /*copy msg head*/
-    memcpy(g_u8MsgBuildBuffer + sizeof(ZC_SecHead), (u8*)pstruMsg, sizeof(ZC_MessageHead));
 
 
     /*copy msg*/
     memcpy(g_u8MsgBuildBuffer + sizeof(ZC_SecHead) + u16OptLen + sizeof(ZC_MessageHead), 
         pu8PayLoad,
         (u16RealLen - u16OptLen));
+
+    crc = crc16_ccitt(g_u8MsgBuildBuffer + sizeof(ZC_MessageHead),u16RealLen);
+    pstruMsg->TotalMsgCrc[0]=(crc&0xff00)>>8;
+    pstruMsg->TotalMsgCrc[1]=(crc&0xff);
+
+    /*copy msg head*/
+    memcpy(g_u8MsgBuildBuffer + sizeof(ZC_SecHead), (u8*)pstruMsg, sizeof(ZC_MessageHead));
+
     
     g_struProtocolController.pstruMoudleFun->pfunGetStoreInfo(ZC_GET_TYPE_TOKENKEY, &pu8Key);
 
@@ -128,6 +133,11 @@ u32 ZC_RecvDataFromMoudle(u8 *pu8Data, u16 u16DataLen)
     }
     
     pstruMsg = (ZC_MessageHead *)pu8Data;
+    ZC_TraceData((u8 *)(pstruMsg + 1), u16DataLen);
+    if(ZC_RET_ERROR == PCT_CheckCrc(pstruMsg->TotalMsgCrc, (u8 *)(pstruMsg + 1), ZC_HTONS(pstruMsg->Payloadlen)))
+    {
+         return ZC_RET_ERROR;
+    }
 
     struOptList.pstruSsession = NULL;
     struOptList.pstruTransportInfo = NULL;

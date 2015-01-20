@@ -134,4 +134,3 @@ unsigned short crc16_ccitt(const unsigned char *buf, unsigned int len)
 	return crc_cal_by_bit(buf,len);
 
 }
-

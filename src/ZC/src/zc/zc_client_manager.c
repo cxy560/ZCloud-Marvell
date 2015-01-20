@@ -205,6 +205,7 @@ void ZC_RecvDataFromClient(u32 ClientId, u8 *pu8Data, u32 u32DataLen)
     u32 u32CiperLen;
     u8 *pu8Key;
     ZC_SendParam struParam;
+    u16 crc;
 
     /*can hanle it,get aes key*/
     
@@ -236,29 +237,32 @@ void ZC_RecvDataFromClient(u32 ClientId, u8 *pu8Data, u32 u32DataLen)
     ZC_SetClientBusy(ClientId);
     
     u32RetVal = MSG_RecvData(&g_struClientBuffer, pu8Data, u32DataLen);
-    if (MSG_BUFFER_FULL == g_struClientBuffer.u8Status)
-    {
-        
-        if (ZC_RET_OK == u32RetVal)
+    if ((MSG_BUFFER_FULL == g_struClientBuffer.u8Status)&&(ZC_RET_OK == u32RetVal))
+    {  
+        do
         {
             pstruHead = (ZC_SecHead *)g_struClientBuffer.u8MsgBuffer;
 
             if (ZC_HTONS(pstruHead->u16TotalMsg) >= MSG_BULID_BUFFER_MAXLEN)
             {
-                return;
+                break;
             }
-            
+         
             AES_CBC_Decrypt(g_struClientBuffer.u8MsgBuffer + sizeof(ZC_SecHead), ZC_HTONS(pstruHead->u16TotalMsg), 
                 pu8Key, ZC_HS_SESSION_KEY_LEN, 
                 pu8Key, 16, 
                 g_u8MsgBuildBuffer, &u32CiperLen);
 
-            
             pstruMsg = (ZC_MessageHead*)(g_u8MsgBuildBuffer);
+            if(ZC_RET_ERROR == PCT_CheckCrc(pstruMsg->TotalMsgCrc, (u8 *)(pstruMsg + 1), ZC_HTONS(pstruMsg->Payloadlen)))
+            {
+                break;
+            }
+
             pstruMsg->Payloadlen = ZC_HTONS(ZC_HTONS(pstruMsg->Payloadlen) + sizeof(ZC_MessageOptHead) + sizeof(ZC_SsessionInfo));
             if (ZC_HTONS(pstruMsg->Payloadlen) > MSG_BULID_BUFFER_MAXLEN)
             {
-                return;
+                break;
             }
 
             pstruMsg->OptNum = pstruMsg->OptNum + 1;
@@ -268,36 +272,39 @@ void ZC_RecvDataFromClient(u32 ClientId, u8 *pu8Data, u32 u32DataLen)
 
             u16Len = 0;
             memcpy(g_struClientBuffer.u8MsgBuffer + u16Len, pstruMsg, sizeof(ZC_MessageHead));
-
+ 
             /*insert opt*/
             u16Len += sizeof(ZC_MessageHead);
             memcpy(g_struClientBuffer.u8MsgBuffer + u16Len, 
-                &struOpt, sizeof(ZC_MessageOptHead));
+                 &struOpt, sizeof(ZC_MessageOptHead));
             u16Len += sizeof(ZC_MessageOptHead);
             memcpy(g_struClientBuffer.u8MsgBuffer + u16Len, 
-                &struSessionMsg, sizeof(struSessionMsg));
-
+                 &struSessionMsg, sizeof(struSessionMsg));
+ 
             /*copy message*/
             u16Len += sizeof(struSessionMsg);    
             memcpy(g_struClientBuffer.u8MsgBuffer + u16Len, 
                 (u8*)(pstruMsg+1), ZC_HTONS(pstruMsg->Payloadlen) - (sizeof(ZC_MessageOptHead) + sizeof(struSessionMsg)));   
-
+ 
             u16Len += ZC_HTONS(pstruMsg->Payloadlen) - (sizeof(ZC_MessageOptHead) + sizeof(struSessionMsg));     
             g_struClientBuffer.u32Len = u16Len;
+
+            crc = crc16_ccitt(g_struClientBuffer.u8MsgBuffer+sizeof(ZC_MessageHead),u16Len);
+            pstruMsg =  (ZC_MessageHead*)(g_struClientBuffer.u8MsgBuffer);
+            pstruMsg->TotalMsgCrc[0]=(crc&0xff00)>>8;
+            pstruMsg->TotalMsgCrc[1]=(crc&0xff);
 
             ZC_TraceData(g_struClientBuffer.u8MsgBuffer, g_struClientBuffer.u32Len);
             
             /*send to moudle*/
             g_struProtocolController.pstruMoudleFun->pfunSendToMoudle(g_struClientBuffer.u8MsgBuffer, g_struClientBuffer.u32Len);
+        }while(0);
+        g_struClientBuffer.u8Status = MSG_BUFFER_IDLE;
+        g_struClientBuffer.u32Len = 0;
+        ZC_SetClientFree(ClientId);
 
-            g_struClientBuffer.u8Status = MSG_BUFFER_IDLE;
-            g_struClientBuffer.u32Len = 0;
-
-            ZC_SetClientFree(ClientId);
-        }
     }
-
-    
+  
     return;
 }
 
