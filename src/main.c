@@ -38,26 +38,69 @@ u32 g_u32GloablIp;
 mdev_t *g_uartdev;
 extern ZC_UartBuffer g_struUartBuffer;
 
+extern int app_network_get_nw(struct wlan_network *network);
+
 void uart_rx_cmd(os_thread_arg_t arg)
 {
-	int uart_rx_len = 0;
-	u8 u8Buffer[1024];
+    int uart_rx_len = 0;
+    int len = 0;
+    int msg_len = 0;
+    u32 u32FixHeaderLen; 
+    ZC_MessageHead *pstruHead;
+    u8  u8UartBuffer[ZC_MAGIC_LEN + 1024];
+    u8  u8MagicHead[ZC_MAGIC_LEN] = {0x02,0x03,0x04,0x05};
 
-	while(1) 
-	{
-        uart_rx_len = uart_drv_read(g_uartdev, u8Buffer, 1024);
+    u32FixHeaderLen = ZC_MAGIC_LEN + sizeof(ZC_MessageHead);
+    
+    while (1) 
+    {
+        len = 0;
+        msg_len = 0;
+        uart_rx_len = 0;
+        memset(u8UartBuffer, 0, 1024);
         
-        if (uart_rx_len > 0)
+
+        while (len != u32FixHeaderLen) 
         {
-            ZC_Moudlefunc(u8Buffer, uart_rx_len);
+            uart_rx_len = uart_drv_read(g_uartdev, u8UartBuffer
+                            + len,
+                            u32FixHeaderLen - len);
+            len += uart_rx_len;
+        }
+
+        if (0 != memcmp(u8UartBuffer, u8MagicHead, 4))
+        {
+            continue;
+        }
+
+        pstruHead = (ZC_MessageHead *)(u8UartBuffer + ZC_MAGIC_LEN);
+        msg_len = ZC_HTONS(pstruHead->Payloadlen);
+
+        if (msg_len + sizeof(ZC_MessageHead) > 1024)
+        {
+            continue;
         }
         
-        //uart_drv_rx_buf_reset(dev);
+        len = 0;
+        uart_rx_len = 0;
+        while (len != msg_len) 
+        {
+            uart_rx_len = uart_drv_read(g_uartdev, u8UartBuffer +
+                            u32FixHeaderLen +
+                            len, msg_len - len);
+                            
+            len += uart_rx_len;
+        }
+        
+        ZC_RecvDataFromMoudle(u8UartBuffer + ZC_MAGIC_LEN, msg_len + sizeof(ZC_MessageHead));
+
     }
+    os_thread_self_complete(NULL);
+
 }
 
 
-static void arrayent_demo_main(os_thread_arg_t data)
+static void ablecloud_main(os_thread_arg_t data)
 {
     int fd;
     u32 u32Timer = 0;
@@ -107,31 +150,23 @@ int common_event_handler(int event, void *data)
 			wmprintf("Error: psm_cli_init failed\r\n");
 		int i = (int) data;
 
-		if (i == APP_NETWORK_NOT_PROVISIONED) {
-			wmprintf("\r\nPlease provision the device "
-				"and then reboot it:\r\n\r\n");
-			wmprintf("psm-set network ssid <ssid>\r\n");
-			wmprintf("psm-set network security <security_type>"
-				"\r\n");
-			wmprintf("    where: security_type: 0 if open,"
-				" 3 if wpa, 4 if wpa2\r\n");
-			wmprintf("psm-set network passphrase <passphrase>"
-				" [valid only for WPA and WPA2 security]\r\n");
-			wmprintf("psm-set network configured 1\r\n");
-			wmprintf("pm-reboot\r\n\r\n");
+		if (i != APP_NETWORK_PROVISIONED) {
+		    wmprintf("start ezconfig\r\n");
+            app_ezconnect_provisioning_start(NULL, 0);
 		} 
 		else
 		{
         	app_sta_start();		    
 		}
+        HF_ReadDataFormFlash();
 		break;
 	case AF_EVT_NORMAL_CONNECTED:
         app_network_get_nw(&WlanInfo);
         g_u32GloablIp = WlanInfo.ip.ipv4.address;
 		if (!is_cloud_started) {
 			ret = os_thread_create(&app_thread,  /* thread handle */
-				"arrayent_demo_thread",/* thread name */
-				arrayent_demo_main,  /* entry function */
+				"ablecloud",/* thread name */
+				ablecloud_main,  /* entry function */
 				0,          /* argument */
 				&app_stack,     /* stack */
 				OS_PRIO_3);     /* priority - medium low */
@@ -139,6 +174,8 @@ int common_event_handler(int event, void *data)
 		}
 		HF_WakeUp();
 		break;
+    case AF_EVT_PROV_DONE:
+        app_ezconnect_provisioning_stop();
 	default:
 		break;
 	}
@@ -174,7 +211,7 @@ static void modules_init()
 	}
 
 	uart_drv_init(UART1_ID, UART_8BIT);
-
+#if 0
 	/* Enable DMA on UART1 */
 	uart_drv_xfer_mode(UART1_ID, UART_DMA_ENABLE);
 
@@ -183,6 +220,8 @@ static void modules_init()
 
 	/* Set internal rx ringbuffer size to 3K */
 	uart_drv_rxbuf_size(UART1_ID, 1024 * 3);
+#endif
+    uart_drv_blocking_read(UART1_ID, true);
 
 	/* Open UART1 with 115200 baud rate. This will return mdev UART1
 	 * handle */
@@ -200,11 +239,11 @@ int main()
 	modules_init();
 
 	wmprintf("Build Time: " __DATE__ " " __TIME__ "\r\n");
-
 	/* Start the application framework */
 	if (app_framework_start(common_event_handler) != WM_SUCCESS) {
 		wmprintf("Failed to start application framework\r\n");
 	}
+
 
     os_thread_create(&uart_thread,
 			       "uart_thread",
@@ -212,3 +251,4 @@ int main()
 			       &uart_thread_stack, OS_PRIO_3);	
 	return 0;
 }
+

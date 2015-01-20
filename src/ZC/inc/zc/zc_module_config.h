@@ -11,6 +11,7 @@
 #define  __ZC_MOUDLE_CONFIG_H__
 #include <wm_os.h>
 
+#define NO_NEED_ASSEMBLE
 
 #if ZC_DEBUG
 #ifdef ZC_OFF_LINETEST

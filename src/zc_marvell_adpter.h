@@ -91,6 +91,10 @@ typedef struct
 }
 
 
+#define ABLECLOUD_MOD_NAME		"ablecloud"
+
+#define VAR_ABLECLOUD_PRODUCT_INFO		"ablecloudinfo"
+
 
 #ifdef __cplusplus
 extern "C" {
@@ -99,7 +103,10 @@ void HF_Init(void);
 void HF_WakeUp(void);
 void HF_Sleep(void);
 void HF_ReadDataFormFlash(void);
-
+void HF_BcInit();
+void HF_CloudRecvfunc();
+void HF_SendDataToCloud(PTC_Connection *pstruConnection);
+void HF_SendBc();
 #ifdef __cplusplus
 }
 #endif

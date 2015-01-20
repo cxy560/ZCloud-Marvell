@@ -146,6 +146,9 @@ void board_uart_pin_config(int id)
 		GPIO_PinMuxFun(GPIO_75, GPIO75_UART0_RXD);
 		break;
 	case UART1_ID:
+		GPIO_PinMuxFun(GPIO_65, GPIO65_UART1_TXD);
+		GPIO_PinMuxFun(GPIO_66, GPIO66_UART1_RXD);
+		break;
 	case UART2_ID:
 	case UART3_ID:
 		/* Not implemented yet */
@@ -186,6 +189,7 @@ void board_ssp_pin_config(int id, bool cs)
 		GPIO_PinMuxFun(GPIO_79, GPIO35_SSP0_TXD);
 		break;
 	case SSP1_ID:
+	    break;
 		 GPIO_PinMuxFun(GPIO_63, GPIO63_SSP1_CLK);
 		if (cs)
 			GPIO_PinMuxFun(GPIO_64, GPIO64_SSP1_FRM);

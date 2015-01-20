@@ -1017,7 +1017,6 @@ void PCT_WakeUp()
         g_struProtocolController.u16SendBcNum = 0;
         PCT_SendNotifyMsg(ZC_CODE_WIFI_CONNECT);
         ZC_ClientWakeUp();
-        g_struProtocolController.u8MainState = PCT_STATE_ACCESS_NET;
     }
     
 }

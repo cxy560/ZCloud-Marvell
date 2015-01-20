@@ -14,6 +14,9 @@
 #include <wm_net.h>
 #include <zc_marvell_adpter.h>
 #include <mdev.h>
+#include <psm.h>
+#include <psm-v2.h>
+#include <rfget.h>
 
 
 extern mdev_t *g_uartdev;
@@ -51,7 +54,10 @@ int g_Bcfd;
 u8  g_u8BcSendBuffer[100];
 
 extern u32 g_u32GloablIp;
-
+update_desc_t g_ud;
+struct partition_entry *g_passive;
+extern psm_hnd_t psm_get_handle(void);
+extern void psm_erase(int argc, char **argv);
 /*************************************************
 * Function: HF_ReadDataFormFlash
 * Description: 
@@ -62,6 +68,35 @@ extern u32 g_u32GloablIp;
 *************************************************/
 void HF_ReadDataFormFlash(void) 
 {
+    int ret;
+    psm_object_handle_t ohandle;
+    psm_hnd_t hnd;
+
+    hnd = psm_get_handle();
+
+    ret = psm_object_open(hnd, ABLECLOUD_MOD_NAME, PSM_MODE_READ, sizeof(HF_StaInfo),
+        NULL, &ohandle);
+
+    if (ret != WM_SUCCESS) 
+    {
+        ZC_Printf("fail read, step1 %d\n", ret);
+        return;
+    }
+    
+    ret = psm_object_read(ohandle, &g_struHfStaInfo, sizeof(HF_StaInfo));
+    if (ret == WM_SUCCESS) 
+    {
+        ZC_Printf("fail read, step2\n");
+        return;
+    }
+
+    ret = psm_object_close(&ohandle);
+    if (ret != WM_SUCCESS) 
+    {
+        ZC_Printf("fail read, step3\n");
+        return;
+    }
+
 }
 
 /*************************************************
@@ -74,6 +109,35 @@ void HF_ReadDataFormFlash(void)
 *************************************************/
 void HF_WriteDataToFlash()
 {
+    int ret;
+    psm_object_handle_t ohandle;
+    psm_hnd_t hnd;
+
+    hnd = psm_get_handle();
+
+    ret = psm_object_open(hnd, ABLECLOUD_MOD_NAME, PSM_MODE_WRITE, sizeof(HF_StaInfo),
+        NULL, &ohandle);
+
+    if (ret != WM_SUCCESS) 
+    {
+        ZC_Printf("fail write, step1 %d\n", ret);
+        return;
+    }
+    
+    ret = psm_object_write(ohandle, &g_struHfStaInfo, sizeof(HF_StaInfo));
+    if (ret != WM_SUCCESS) 
+    {
+        ZC_Printf("fail write, step2\n");
+        return;
+    }
+
+    ret = psm_object_close(&ohandle);
+    if (ret != WM_SUCCESS) 
+    {
+        ZC_Printf("fail write, step3\n");    
+        return;
+    }
+    
 }
 
 /*************************************************
@@ -120,18 +184,19 @@ void HF_StopTimer(u8 u8TimerIndex)
 u32 HF_SetTimer(u8 u8Type, u32 u32Interval, u8 *pu8TimeIndex)
 {
     u8 u8TimerIndex;
+    u32 u32Tmp;
     u32 u32Retval;
 
     u32Retval = TIMER_FindIdleTimer(&u8TimerIndex);
     if (ZC_RET_OK == u32Retval)
     {
         TIMER_AllocateTimer(u8Type, u8TimerIndex, (u8*)&g_struHfTimer[u8TimerIndex]);
-
+        u32Tmp = (u32)u8TimerIndex;
         os_timer_create(&g_struHfTimer[u8TimerIndex].struHandle,
         				  NULL,
         				  os_msec_to_ticks(u32Interval),
         				  &HF_timer_callback,
-        				  (void *)u8TimerIndex,
+        				  (void *)u32Tmp,
         				  OS_TIMER_ONE_SHOT,
         				  OS_TIMER_NO_ACTIVATE); 
         				  
@@ -217,6 +282,8 @@ void HF_RecvDataFromCloud(u8 *pu8Data, u32 u32DataLen)
 *************************************************/
 u32 HF_FirmwareUpdateFinish(u32 u32TotalLen)
 {
+	rfget_update_complete(&g_ud);
+
     return ZC_RET_OK;
 }
 
@@ -231,6 +298,21 @@ u32 HF_FirmwareUpdateFinish(u32 u32TotalLen)
 *************************************************/
 u32 HF_FirmwareUpdate(u8 *pu8FileData, u32 u32Offset, u32 u32DataLen)
 {
+    int retval;
+
+    if (0 == u32Offset)
+    {
+        g_passive = rfget_get_passive_firmware();
+        retval = rfget_update_begin(&g_ud, g_passive);
+        rfget_init();
+    }
+    
+    retval = rfget_update_data(&g_ud, (char *)pu8FileData, u32DataLen);
+    if (retval < 0)
+    {
+        return ZC_RET_ERROR;
+    }
+
     return ZC_RET_OK;
 }
 /*************************************************
@@ -244,8 +326,10 @@ u32 HF_FirmwareUpdate(u8 *pu8FileData, u32 u32Offset, u32 u32DataLen)
 u32 HF_SendDataToMoudle(u8 *pu8Data, u16 u16DataLen)
 {
     u8 u8MagicFlag[4] = {0x02,0x03,0x04,0x05};
-    uart_drv_write(g_uartdev,(char*)u8MagicFlag,4); 
-    uart_drv_write(g_uartdev,(char*)pu8Data,u16DataLen); 
+    
+    uart_drv_write(g_uartdev,u8MagicFlag,4); 
+    uart_drv_write(g_uartdev,pu8Data,u16DataLen); 
+    
     return ZC_RET_OK;
 }
 
@@ -290,7 +374,7 @@ u32 HF_GetStoreInfor(u8 u8Type, u8 **pu8Data)
 *************************************************/
 void HF_Rest(void)
 {
-
+    psm_erase(0, NULL);
 }
 /*************************************************
 * Function: HF_SendDataToNet
@@ -425,7 +509,6 @@ void HF_CloudRecvfunc()
     u32 u32ActiveFlag = 0;
     struct sockaddr_in cliaddr;
     int connfd;
-    extern u8 g_u8ClientStart;
     u32 u32MaxFd = 0;
     struct timeval timeout; 
     struct sockaddr_in addr;
@@ -529,7 +612,7 @@ void HF_CloudRecvfunc()
     {
         if (FD_ISSET(g_struProtocolController.struClientConnection.u32Socket, &fdread))
         {
-            connfd = accept(g_struProtocolController.struClientConnection.u32Socket,(struct sockaddr *)&cliaddr,&u32Len);
+            connfd = accept(g_struProtocolController.struClientConnection.u32Socket,(struct sockaddr *)&cliaddr,(socklen_t*)&u32Len);
     
             if (ZC_RET_ERROR == ZC_ClientConnect((u32)connfd))
             {
@@ -730,6 +813,8 @@ void HF_SendBc()
 *************************************************/
 void HF_Init()
 {
+    int ret;
+    
     ZC_Printf("MT Init\n");
     g_struHfAdapter.pfunConnectToCloud = HF_ConnectToCloud;
     g_struHfAdapter.pfunListenClient = HF_ListenClient;
@@ -748,6 +833,14 @@ void HF_Init()
 
     g_struUartBuffer.u32Status = MSG_BUFFER_IDLE;
     g_struUartBuffer.u32RecvLen = 0;
+
+    ret = psm_register_module(ABLECLOUD_MOD_NAME, "common_part", PSM_CREAT);
+    if (ret != WM_SUCCESS && ret != -WM_E_EXIST) 
+    {
+        ZC_Printf("Failed to register ablecloud module with psm\n");
+        return;
+    }
+
 }
 
 /*************************************************
