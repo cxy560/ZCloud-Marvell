@@ -63,6 +63,8 @@ SRCS = main.c \
 	ZC/src/zc/zc_protocol_controller.c \
 	ZC/src/zc/zc_sec_engine.c \
 	ZC/src/zc/zc_timer.c \
+    ZC/src/zc/zc_bc.c \
+    ZC/src/zc/zc_configuration.c \
 	ZC/src/tropicssl/rsa.c \
 	ZC/src/tropicssl/bignum.c \
 	aes/aes_cbc.c \
@@ -72,8 +74,8 @@ EXTRACFLAGS +=  \
 	  -I $(CURDIR)/src/aes \
 	  -I $(CURDIR)/src/ZC/inc/zc \
 	  -I $(CURDIR)/src/ZC/inc/tropicssl \
-	  -DZC_MODULE_TYPE=1 \
-	  -DZC_MODULE_VERSION=4
+	  -DZC_MODULE_TYPE=3 \
+	  -DZC_MODULE_VERSION=0
 
 LDSCRIPT = $(TOOLCHAIN_DIR)/mc200.ld
 

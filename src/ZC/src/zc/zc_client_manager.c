@@ -209,7 +209,7 @@ void ZC_RecvDataFromClient(u32 ClientId, u8 *pu8Data, u32 u32DataLen)
 
     /*can hanle it,get aes key*/
     
-    g_struProtocolController.pstruMoudleFun->pfunGetStoreInfo(ZC_GET_TYPE_TOKENKEY, &pu8Key);
+    ZC_GetStoreInfor(ZC_GET_TYPE_TOKENKEY, &pu8Key);
 
     u32RetVal = ZC_CheckClientIdle(ClientId);
     if (ZC_RET_ERROR == u32RetVal)
@@ -228,7 +228,7 @@ void ZC_RecvDataFromClient(u32 ClientId, u8 *pu8Data, u32 u32DataLen)
         pstruHead->u16TotalMsg = ZC_HTONS((u16)u32CiperLen);
 
         struParam.u8NeedPoll = 0;            
-        g_struProtocolController.pstruMoudleFun->pfunSendToNet(ClientId, g_u8MsgBuildBuffer, 
+        g_struProtocolController.pstruMoudleFun->pfunSendTcpData(ClientId, g_u8MsgBuildBuffer, 
             u32CiperLen + sizeof(ZC_SecHead), &struParam);
         return;            
     }

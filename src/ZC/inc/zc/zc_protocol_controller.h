@@ -18,6 +18,8 @@
 #include <zc_cloud_event.h>
 #include <zc_client_manager.h>
 #include <zc_timer.h>
+#include <zc_configuration.h>
+#include <zc_bc.h>
 
 
 /*PCT Main State Machine*/
@@ -56,11 +58,7 @@
 #define    PCT_OTA_REST_ON       (1)
 #define    PCT_OTA_REST_OFF       (0)
 
-#define    ZC_GET_TYPE_CLOUDKEY    (0)
-#define    ZC_GET_TYPE_DEVICEID    (1)
-#define    ZC_GET_TYPE_PRIVATEKEY  (2)
-#define    ZC_GET_TYPE_VESION      (3)
-#define    ZC_GET_TYPE_TOKENKEY    (4)
+
 
 
 typedef struct
@@ -76,21 +74,21 @@ typedef struct
 {
     u8 u8NeedPoll;
     u8 u8Pad[3];
+
+    u8 *pu8AddrPara;
 }ZC_SendParam;
 
-typedef void (*pFunSendNetData)(u32 u32Fd, u8 *pu8Data, u16 u16DataLen, ZC_SendParam *pstruParam);
+typedef void (*pFunSendTcpData)(u32 u32Fd, u8 *pu8Data, u16 u16DataLen, ZC_SendParam *pstruParam);
+typedef void (*pFunSendUdpData)(u32 u32Fd, u8 *pu8Data, u16 u16DataLen, ZC_SendParam *pstruParam);
+
 typedef u32 (*pFunFirmwareUpdate)(u8 *pu8FileData, u32 u32Offset, u32 u32DataLen);
 typedef u32 (*pFunFirmwareUpdateFinish)(u32 u32TotalLen);
 typedef u32 (*pFunSendDataToMoudle)(u8 *pu8Data, u16 u16DataLen);
-typedef u32 (*pFunStoreInfo)(u8 u8Type, u8 *pu8Data, u16 u16DataLen);
 typedef u32 (*pFunRecvDataFromMoudle)(u8 *pu8Data, u16 u16DataLen);
-typedef u32 (*pFunGetStoreInfo)(u8 u8Type, u8 **pu8Data);
+typedef void (*pFunWriteFlashData)(u8 *pu8Data, u16 u16DataLen);
 
 
-typedef u32 (*pFunGetCloudKey)(u8 **pu8Key);
-typedef u32 (*pFunGetPrivateKey)(u8 **pu8Key);
-typedef u32 (*pFunGetVersion)(u8 **pu8Version);
-typedef u32 (*pFunGetDeviceId)(u8 **pu8DeviceId);
+
 typedef u32 (*pFunConnectToCloud)(PTC_Connection *pstruConnection);
 typedef u32 (*pFunListenClient)(PTC_Connection *pstruConnection);
 typedef u32 (*pFunSetTimer)(u8 u8Type, u32 Interval, u8 *pu8Index);
@@ -103,17 +101,16 @@ typedef struct
     /*action function*/
     pFunConnectToCloud          pfunConnectToCloud;
     pFunListenClient            pfunListenClient;
-    pFunSendNetData             pfunSendToNet; 
+    pFunSendTcpData             pfunSendTcpData;
+    pFunSendUdpData             pfunSendUdpData;    
     pFunFirmwareUpdate          pfunUpdate;
     pFunFirmwareUpdateFinish    pfunUpdateFinish;    
     pFunSendDataToMoudle        pfunSendToMoudle;
-    pFunStoreInfo               pfunStoreInfo; 
     pFunRest                    pfunRest;
     
-    /*config function*/
-    pFunGetStoreInfo            pfunGetStoreInfo;
     pFunSetTimer                pfunSetTimer;
     pFunStopTimer               pfunStopTimer;
+    pFunWriteFlashData          pfunWriteFlash;
 }PTC_ModuleAdapter;
 
 typedef struct
@@ -166,8 +163,6 @@ extern MSG_Buffer g_struRetxBuffer;
 extern u8 g_u8MsgBuildBuffer[MSG_BULID_BUFFER_MAXLEN];
 
 extern u16 g_u16TcpMss;
-extern u32 g_u32LoopFlag;
-extern u32 g_u32SecSwitch;
 extern ZC_ClientInfo g_struClientInfo;
 
 #ifdef __cplusplus
@@ -210,4 +205,5 @@ void PCT_HandleMoudleMsg(PTC_ProtocolCon *pstruContoller, MSG_Buffer *pstruBuffe
 #endif
 #endif
 /******************************* FILE END ***********************************/
+
 

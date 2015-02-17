@@ -17,6 +17,8 @@
 #include <psm.h>
 #include <psm-v2.h>
 #include <rfget.h>
+#include <app_framework.h>
+
 
 
 extern mdev_t *g_uartdev;
@@ -41,23 +43,19 @@ u16 g_u16TcpMss;
 u16 g_u16LocalPort;
 
 
-HF_StaInfo g_struHfStaInfo = {
-    DEFAULT_IOT_CLOUD_KEY,
-    DEFAULT_IOT_PRIVATE_KEY,
-    DEFAULT_DEVICIID,
-    "www.ablecloud.cn"
-};
 u8 g_u8recvbuffer[HF_MAX_SOCKET_LEN];
 ZC_UartBuffer g_struUartBuffer;
 HF_TimerInfo g_struHfTimer[ZC_TIMER_MAX_NUM];
-int g_Bcfd;
-u8  g_u8BcSendBuffer[100];
 
-extern u32 g_u32GloablIp;
+u8  g_u8BcSendBuffer[100];
+struct sockaddr_in struRemoteAddr;
+
 update_desc_t g_ud;
 struct partition_entry *g_passive;
 extern psm_hnd_t psm_get_handle(void);
 extern void psm_erase(int argc, char **argv);
+extern int app_network_set_nw_state(int state);
+
 /*************************************************
 * Function: HF_ReadDataFormFlash
 * Description: 
@@ -74,7 +72,7 @@ void HF_ReadDataFormFlash(void)
 
     hnd = psm_get_handle();
 
-    ret = psm_object_open(hnd, ABLECLOUD_MOD_NAME, PSM_MODE_READ, sizeof(HF_StaInfo),
+    ret = psm_object_open(hnd, ABLECLOUD_MOD_NAME, PSM_MODE_READ, sizeof(ZC_ConfigDB),
         NULL, &ohandle);
 
     if (ret != WM_SUCCESS) 
@@ -82,8 +80,17 @@ void HF_ReadDataFormFlash(void)
         ZC_Printf("fail read, step1 %d\n", ret);
         return;
     }
+
+    ret = psm_object_read(ohandle, &g_struZcConfigDb, sizeof(ZC_ConfigDB));
+    if (ZC_MAGIC_FLAG == g_struZcConfigDb.u32MagicFlag)
+    {
+    }
+    else
+    {
+        ZC_Printf("no para, use default\n");
+        ZC_ConfigInitPara();
+    }
     
-    ret = psm_object_read(ohandle, &g_struHfStaInfo, sizeof(HF_StaInfo));
     if (ret == WM_SUCCESS) 
     {
         ZC_Printf("fail read, step2\n");
@@ -107,7 +114,7 @@ void HF_ReadDataFormFlash(void)
 * Parameter: 
 * History:
 *************************************************/
-void HF_WriteDataToFlash()
+void HF_WriteDataToFlash(u8 *pu8Data, u16 u16Len)
 {
     int ret;
     psm_object_handle_t ohandle;
@@ -115,7 +122,7 @@ void HF_WriteDataToFlash()
 
     hnd = psm_get_handle();
 
-    ret = psm_object_open(hnd, ABLECLOUD_MOD_NAME, PSM_MODE_WRITE, sizeof(HF_StaInfo),
+    ret = psm_object_open(hnd, ABLECLOUD_MOD_NAME, PSM_MODE_WRITE, sizeof(ZC_ConfigDB),
         NULL, &ohandle);
 
     if (ret != WM_SUCCESS) 
@@ -124,7 +131,7 @@ void HF_WriteDataToFlash()
         return;
     }
     
-    ret = psm_object_write(ohandle, &g_struHfStaInfo, sizeof(HF_StaInfo));
+    ret = psm_object_write(ohandle, pu8Data, u16Len);
     if (ret != WM_SUCCESS) 
     {
         ZC_Printf("fail write, step2\n");
@@ -208,70 +215,6 @@ u32 HF_SetTimer(u8 u8Type, u32 u32Interval, u8 *pu8TimeIndex)
     
     return u32Retval;
 }
-
-
-/*************************************************
-* Function: HF_SendDataToCloud
-* Description: 
-* Author: cxy 
-* Returns: 
-* Parameter: 
-* History:
-*************************************************/
-void HF_SendDataToCloud(PTC_Connection *pstruConnection)
-{
-    MSG_Buffer *pstruBuf = NULL;
-
-    u16 u16DataLen; 
-    pstruBuf = (MSG_Buffer *)MSG_PopMsg(&g_struSendQueue); 
-    
-    if (NULL == pstruBuf)
-    {
-        return;
-    }
-    
-    u16DataLen = pstruBuf->u32Len; 
-
-    send(pstruConnection->u32Socket, pstruBuf->u8MsgBuffer, u16DataLen, 0);
-    ZC_Printf("send data len = %d\n", u16DataLen);
-    pstruBuf->u8Status = MSG_BUFFER_IDLE;
-    pstruBuf->u32Len = 0;
-    return;
-}
-/*************************************************
-* Function: HF_RecvDataFromCloud
-* Description: 
-* Author: cxy 
-* Returns: 
-* Parameter: 
-* History:
-*************************************************/
-void HF_RecvDataFromCloud(u8 *pu8Data, u32 u32DataLen)
-{
-    u32 u32RetVal;
-    u16 u16PlainLen;
-    u32RetVal = MSG_RecvData(&g_struRecvBuffer, pu8Data, u32DataLen);
-
-    if (ZC_RET_OK == u32RetVal)
-    {
-        if (MSG_BUFFER_FULL == g_struRecvBuffer.u8Status)
-        {
-            u32RetVal = SEC_Decrypt((ZC_SecHead*)g_struRecvBuffer.u8MsgBuffer, 
-                g_struRecvBuffer.u8MsgBuffer + sizeof(ZC_SecHead), g_u8MsgBuildBuffer, &u16PlainLen);
-
-            /*copy data*/
-            memcpy(g_struRecvBuffer.u8MsgBuffer, g_u8MsgBuildBuffer, u16PlainLen);
-
-            g_struRecvBuffer.u32Len = u16PlainLen;
-            if (ZC_RET_OK == u32RetVal)
-            {
-                u32RetVal = MSG_PushMsg(&g_struRecvQueue, (u8*)&g_struRecvBuffer);
-            }
-        }
-    }
-    
-    return;
-}
 /*************************************************
 * Function: HF_FirmwareUpdateFinish
 * Description: 
@@ -333,36 +276,6 @@ u32 HF_SendDataToMoudle(u8 *pu8Data, u16 u16DataLen)
     return ZC_RET_OK;
 }
 
-/*************************************************
-* Function: HF_GetStoreInfor
-* Description: 
-* Author: cxy 
-* Returns: 
-* Parameter: 
-* History:
-*************************************************/
-u32 HF_GetStoreInfor(u8 u8Type, u8 **pu8Data)
-{
-    switch(u8Type)
-    {
-        case ZC_GET_TYPE_CLOUDKEY:
-            *pu8Data = g_struHfStaInfo.u8CloudKey;
-            break;
-        case ZC_GET_TYPE_DEVICEID:
-            *pu8Data = g_struHfStaInfo.u8DeviciId;
-            break;
-        case ZC_GET_TYPE_PRIVATEKEY:
-            *pu8Data = g_struHfStaInfo.u8PrivateKey;
-            break;
-        case ZC_GET_TYPE_VESION:
-            *pu8Data = g_struHfStaInfo.u8EqVersion;        
-            break;
-        case ZC_GET_TYPE_TOKENKEY:
-            *pu8Data = g_struHfStaInfo.u8TokenKey;        
-            break;
-    }
-    return ZC_RET_OK;
-}
 
 /*************************************************
 * Function: HF_Rest
@@ -374,122 +287,34 @@ u32 HF_GetStoreInfor(u8 u8Type, u8 **pu8Data)
 *************************************************/
 void HF_Rest(void)
 {
-    psm_erase(0, NULL);
+    (void)app_network_set_nw_state(APP_NETWORK_NOT_PROVISIONED);
+    app_reboot(REASON_USER_REBOOT);
 }
 /*************************************************
-* Function: HF_SendDataToNet
+* Function: HF_SendTcpData
 * Description: 
 * Author: cxy 
 * Returns: 
 * Parameter: 
 * History:
 *************************************************/
-void HF_SendDataToNet(u32 u32Fd, u8 *pu8Data, u16 u16DataLen, ZC_SendParam *pstruParam)
+void HF_SendTcpData(u32 u32Fd, u8 *pu8Data, u16 u16DataLen, ZC_SendParam *pstruParam)
 {
     send(u32Fd, pu8Data, u16DataLen, 0);
 }
-
 /*************************************************
-* Function: HF_StoreRegisterInfor
+* Function: HF_SendUdpData
 * Description: 
 * Author: cxy 
 * Returns: 
 * Parameter: 
 * History:
 *************************************************/
-u32 HF_StoreRegisterInfor(u8 u8Type, u8 *pu8Data, u16 u16DataLen)
+void HF_SendUdpData(u32 u32Fd, u8 *pu8Data, u16 u16DataLen, ZC_SendParam *pstruParam)
 {
-    switch(u8Type)
-    {
-        case 0:
-        {
-            ZC_RegisterReq *pstruRegister;
-            
-            pstruRegister = (ZC_RegisterReq *)(pu8Data);
-            
-            memcpy(g_struHfStaInfo.u8PrivateKey, pstruRegister->u8ModuleKey, ZC_MODULE_KEY_LEN);
-            memcpy(g_struHfStaInfo.u8DeviciId, pstruRegister->u8DeviceId, ZC_HS_DEVICE_ID_LEN);
-            memcpy(g_struHfStaInfo.u8DeviciId + ZC_HS_DEVICE_ID_LEN, pstruRegister->u8Domain, ZC_DOMAIN_LEN);
-            memcpy(g_struHfStaInfo.u8EqVersion, pstruRegister->u8EqVersion, ZC_EQVERSION_LEN);
-        
-            break;
-        }
-        case 1:
-        {
-            memcpy(g_struHfStaInfo.u8TokenKey, pu8Data, u16DataLen);
-            HF_WriteDataToFlash();
-            break;        
-        }
-        default:
-            break;
-    }
-    
-    return ZC_RET_OK;
-}
-/*************************************************
-* Function: HF_SendClientQueryReq
-* Description: 
-* Author: cxy 
-* Returns: 
-* Parameter: 
-* History:
-*************************************************/
-void HF_SendClientQueryReq(u8 *pu8Msg, u16 u16RecvLen)
-{
-    ZC_MessageHead *pstruMsg;
-    struct sockaddr_in addr;
-    ZC_ClientQueryRsp struRsp;
-    u16 u16Len;
-    u8 *pu8DeviceId;
-    u8 *pu8Domain;    
-    u32 u32Index;
-    ZC_ClientQueryReq *pstruQuery;
-
-    if (g_struProtocolController.u8MainState < PCT_STATE_ACCESS_NET)
-    {
-        return;
-    }
-    
-    if (u16RecvLen != sizeof(ZC_MessageHead) + sizeof(ZC_ClientQueryReq))
-    {
-        return;
-    }
-    
-    pstruMsg = (ZC_MessageHead *)pu8Msg;
-    pstruQuery = (ZC_ClientQueryReq *)(pstruMsg + 1);
-
-    if (ZC_CODE_CLIENT_QUERY_REQ != pstruMsg->MsgCode)
-    {
-        return;
-    }
-    g_struProtocolController.pstruMoudleFun->pfunGetStoreInfo(ZC_GET_TYPE_DEVICEID, &pu8DeviceId);
-    pu8Domain = pu8DeviceId + ZC_HS_DEVICE_ID_LEN;
-
-    /*Only first 6 bytes is vaild*/
-    for (u32Index = 0; u32Index < 6; u32Index++)
-    {
-        if (pstruQuery->u8Domain[u32Index] != pu8Domain[u32Index])
-        {
-            return;
-        }
-        
-    }
-
-
-    memset((char*)&addr,0,sizeof(addr));
-    addr.sin_family = AF_INET; 
-    addr.sin_port = htons(ZC_MOUDLE_BROADCAST_PORT); 
-    addr.sin_addr.s_addr=inet_addr("255.255.255.255"); 
-    
-    struRsp.addr[0] = g_u32GloablIp & 0xff;
-    struRsp.addr[1] = (g_u32GloablIp >> 8) & 0xff;        
-    struRsp.addr[2] = (g_u32GloablIp >> 16) & 0xff;
-    struRsp.addr[3] = (g_u32GloablIp >> 24)  & 0xff;    
-    
-    memcpy(struRsp.DeviceId, pu8DeviceId, ZC_HS_DEVICE_ID_LEN);
-    EVENT_BuildMsg(ZC_CODE_CLIENT_QUERY_RSP, 0, g_u8MsgBuildBuffer, &u16Len, (u8*)&struRsp, sizeof(ZC_ClientQueryRsp));
-    sendto(g_Bcfd,g_u8MsgBuildBuffer,u16Len,0,(struct sockaddr *)&addr,sizeof(addr));             
-
+    sendto(u32Fd,(char*)pu8Data,u16DataLen,0,
+        (struct sockaddr *)pstruParam->pu8AddrPara,
+        sizeof(struct sockaddr_in)); 
 }
 
 /*************************************************
@@ -571,7 +396,7 @@ void HF_CloudRecvfunc()
             if(s32RecvLen > 0) 
             {
                 ZC_Printf("recv data len = %d\n", s32RecvLen);
-                HF_RecvDataFromCloud(g_u8recvbuffer, s32RecvLen);
+                MSG_RecvDataFromCloud(g_u8recvbuffer, s32RecvLen);
             }
             else
             {
@@ -616,7 +441,7 @@ void HF_CloudRecvfunc()
     
             if (ZC_RET_ERROR == ZC_ClientConnect((u32)connfd))
             {
-                net_close(connfd);
+                close(connfd);
             }
             else
             {
@@ -631,7 +456,7 @@ void HF_CloudRecvfunc()
         s32RecvLen = recvfrom(g_Bcfd, g_u8BcSendBuffer, 100, 0, (struct sockaddr *)&addr, (socklen_t*)&tmp); 
         if(s32RecvLen > 0) 
         {
-            HF_SendClientQueryReq(g_u8BcSendBuffer, (u16)s32RecvLen);
+            ZC_SendClientQueryReq(g_u8BcSendBuffer, (u16)s32RecvLen);
         } 
     }
 }
@@ -673,8 +498,21 @@ u32 HF_ConnectToCloud(PTC_Connection *pstruConnection)
     int retval;
     
     memset((char*)&addr,0,sizeof(addr));
-    ZC_Printf("connect to cloud %s\n",g_struHfStaInfo.u8CloudAddr);
-    retval = net_gethostbyname((const char*)g_struHfStaInfo.u8CloudAddr, &addr_tmp);
+    if (1 == g_struZcConfigDb.struSwitchInfo.u32TestAddrConfig)
+    {
+        ZC_Printf("test cloud\n");
+        retval = net_gethostbyname((const char *)"test.ablecloud.cn", &addr_tmp);
+    }
+    else if (2 == g_struZcConfigDb.struSwitchInfo.u32TestAddrConfig)
+    {
+        ZC_Printf("test cloud 2\n");
+        retval = WM_SUCCESS;
+    }
+    else
+    {
+        retval = net_gethostbyname((const char *)g_struZcConfigDb.struCloudInfo.u8CloudAddr, &addr_tmp);
+    }
+    
     if (WM_SUCCESS != retval)
     {
         return ZC_RET_ERROR;
@@ -682,7 +520,14 @@ u32 HF_ConnectToCloud(PTC_Connection *pstruConnection)
     
     addr.sin_family = AF_INET;
     addr.sin_port = htons(ZC_CLOUD_PORT);
-    memcpy(&addr.sin_addr.s_addr, addr_tmp->h_addr_list[0], addr_tmp->h_length);
+    if (2 == g_struZcConfigDb.struSwitchInfo.u32TestAddrConfig)
+    {
+        addr.sin_addr.s_addr = htonl(g_struZcConfigDb.struSwitchInfo.u32ServerIp);
+    }
+    else
+    {
+        memcpy(&addr.sin_addr.s_addr, addr_tmp->h_addr_list[0], addr_tmp->h_length);
+    }
     fd = net_socket(AF_INET, SOCK_STREAM, 0);
 
     if(fd<0)
@@ -690,7 +535,7 @@ u32 HF_ConnectToCloud(PTC_Connection *pstruConnection)
     
     if (connect(fd, (struct sockaddr *)&addr, sizeof(addr))< 0)
     {
-        net_close(fd);
+        close(fd);
         return ZC_RET_ERROR;
     }
 
@@ -698,7 +543,7 @@ u32 HF_ConnectToCloud(PTC_Connection *pstruConnection)
     g_struProtocolController.struCloudConnection.u32Socket = fd;
 
     
-    HF_Rand(g_struProtocolController.RandMsg);
+    ZC_Rand(g_struProtocolController.RandMsg);
     return ZC_RET_OK;
 }
 /*************************************************
@@ -762,45 +607,14 @@ void HF_BcInit()
     setsockopt(g_Bcfd, SOL_SOCKET,SO_BROADCAST,&tmp,sizeof(tmp)); 
 
     bind(g_Bcfd, (struct sockaddr*)&addr, sizeof(addr)); 
+
+    memset((char*)&struRemoteAddr,0,sizeof(struRemoteAddr));
+    struRemoteAddr.sin_family = AF_INET; 
+    struRemoteAddr.sin_port = htons(ZC_MOUDLE_BROADCAST_PORT); 
+    struRemoteAddr.sin_addr.s_addr=inet_addr("255.255.255.255"); 
+    g_pu8RemoteAddr = (u8*)&struRemoteAddr;
+    g_u32BcSleepCount = 1000;
     return;
-}
-/*************************************************
-* Function: HF_SendBc
-* Description: 
-* Author: cxy 
-* Returns: 
-* Parameter: 
-* History:
-*************************************************/
-void HF_SendBc()
-{
-    struct sockaddr_in addr;
-    u16 u16Len;
-    static int sleepcount = 0;
-    
-    if (PCT_STATE_CONNECT_CLOUD != g_struProtocolController.u8MainState)
-    {
-        sleepcount = 0;
-        return;
-    }
-    sleepcount++;
-    if (sleepcount > 500)
-    {
-        memset((char*)&addr,0,sizeof(addr));
-        addr.sin_family = AF_INET; 
-        addr.sin_port = htons(ZC_MOUDLE_BROADCAST_PORT); 
-        addr.sin_addr.s_addr=inet_addr("255.255.255.255"); 
-        
-
-        EVENT_BuildBcMsg(g_u8MsgBuildBuffer, &u16Len);
-
-        if (g_struProtocolController.u16SendBcNum < (PCT_SEND_BC_MAX_NUM))
-        {
-           sendto(g_Bcfd,g_u8MsgBuildBuffer,u16Len,0,(struct sockaddr *)&addr,sizeof(addr)); 
-           g_struProtocolController.u16SendBcNum++;
-        }
-        sleepcount = 0;
-    }
 }
 
 /*************************************************
@@ -818,15 +632,14 @@ void HF_Init()
     ZC_Printf("MT Init\n");
     g_struHfAdapter.pfunConnectToCloud = HF_ConnectToCloud;
     g_struHfAdapter.pfunListenClient = HF_ListenClient;
-    g_struHfAdapter.pfunSendToNet = HF_SendDataToNet;   
+    g_struHfAdapter.pfunSendTcpData = HF_SendTcpData;  
+    g_struHfAdapter.pfunSendUdpData = HF_SendUdpData;   
     g_struHfAdapter.pfunUpdate = HF_FirmwareUpdate;     
     g_struHfAdapter.pfunUpdateFinish = HF_FirmwareUpdateFinish;
     g_struHfAdapter.pfunSendToMoudle = HF_SendDataToMoudle;  
-    g_struHfAdapter.pfunStoreInfo = HF_StoreRegisterInfor;
-    g_struHfAdapter.pfunGetStoreInfo = HF_GetStoreInfor;
     g_struHfAdapter.pfunSetTimer = HF_SetTimer;   
     g_struHfAdapter.pfunStopTimer = HF_StopTimer;
-    
+    g_struHfAdapter.pfunWriteFlash = HF_WriteDataToFlash;
     g_struHfAdapter.pfunRest = HF_Rest;
     g_u16TcpMss = 1000;
     PCT_Init(&g_struHfAdapter);
@@ -865,6 +678,31 @@ void HF_WakeUp()
 *************************************************/
 void HF_Sleep()
 {
+    u32 u32Index;
+
+    close(g_Bcfd);
+
+    if (PCT_INVAILD_SOCKET != g_struProtocolController.struClientConnection.u32Socket)
+    {
+        close(g_struProtocolController.struClientConnection.u32Socket);
+        g_struProtocolController.struClientConnection.u32Socket = PCT_INVAILD_SOCKET;
+    }
+
+    if (PCT_INVAILD_SOCKET != g_struProtocolController.struCloudConnection.u32Socket)
+    {
+        close(g_struProtocolController.struCloudConnection.u32Socket);
+        g_struProtocolController.struCloudConnection.u32Socket = PCT_INVAILD_SOCKET;
+    }
+    
+    for (u32Index = 0; u32Index < ZC_MAX_CLIENT_NUM; u32Index++)
+    {
+        if (0 == g_struClientInfo.u32ClientVaildFlag[u32Index])
+        {
+            close(g_struClientInfo.u32ClientFd[u32Index]);
+            g_struClientInfo.u32ClientFd[u32Index] = PCT_INVAILD_SOCKET;
+        }
+    }
+
     PCT_Sleep();
 }
 

@@ -27,6 +27,14 @@
 
 #define ZC_OTA_MAX_CHUNK_LEN                (384)
 
+#define ZC_SSID_MAX_LEN                     (32)
+
+#define ZC_PASSWORD_MAX_LEN                 (64)
+
+#define ZC_CLOUD_ADDR_MAX_LEN               (20)
+#define ZC_CLOUD_KEY_MAX_LEN                (36)
+
+
 /****************************************************************************************
 *message format: 
 *|ZC_SecHead||ZC_MessageHead||ZC_MessageOptHead||ZC_MessageOption|.......|ZC_MessagePayload|
@@ -66,48 +74,48 @@ typedef struct
 typedef enum 
 {
     ZC_CODE_EQ_BEGIN = 0,
-    ZC_CODE_EQ_DONE,
-    ZC_CODE_WIFI_CONNECT,
-    ZC_CODE_WIFI_DISCONNECT,
-    ZC_CODE_CLOUD_CONNECT,
-    ZC_CODE_CLOUD_DISCONNECT,
-    ZC_CODE_LOCAL_HANDSHAKE,
-    ZC_CODE_DESCRIBE,                 
-    ZC_CODE_REST,                
+    ZC_CODE_EQ_DONE = 1,
+    ZC_CODE_WIFI_CONNECTED = 2,
+    ZC_CODE_WIFI_DISCONNECTED = 3,
+    ZC_CODE_CLOUD_CONNECTED = 4,
+    ZC_CODE_CLOUD_DISCONNECTED = 5,
+    ZC_CODE_CONFIG = 6,
+    ZC_CODE_REGSITER = 7,                 
+    ZC_CODE_REST = 8,                
 
     /*HandShake Code*/
-    ZC_CODE_HANDSHAKE_1,
-    ZC_CODE_HANDSHAKE_2,
-    ZC_CODE_HANDSHAKE_3,
-    ZC_CODE_HANDSHAKE_4,
+    ZC_CODE_HANDSHAKE_1 = 9,
+    ZC_CODE_HANDSHAKE_2 = 10,
+    ZC_CODE_HANDSHAKE_3 = 11,
+    ZC_CODE_HANDSHAKE_4 = 12,
 
     /*Respone Code*/
-    ZC_CODE_HEARTBEAT,   /*no payload*/
-    ZC_CODE_EMPTY,		 /*no payload, send by moudle when can recv another msg*/
-    ZC_CODE_ACK,         /*user define payload*/
-    ZC_CODE_ERR,         /*use ZC_ErrorMsg*/
+    ZC_CODE_HEARTBEAT = 13,   /*no payload*/
+    ZC_CODE_EMPTY = 14,		 /*no payload, send by moudle when can recv another msg*/
+    ZC_CODE_ACK = 15,         /*user define payload*/
+    ZC_CODE_ERR = 16,         /*use ZC_ErrorMsg*/
 
     /*OTA Code*/
-    ZC_CODE_OTA_BEGIN,
-    ZC_CODE_OTA_FILE_BEGIN,      /*file name, len, version*/
-    ZC_CODE_OTA_FILE_CHUNK,
-    ZC_CODE_OTA_FILE_END,
-    ZC_CODE_OTA_END,
+    ZC_CODE_OTA_BEGIN = 17,
+    ZC_CODE_OTA_FILE_BEGIN = 18,      /*file name, len, version*/
+    ZC_CODE_OTA_FILE_CHUNK = 19,
+    ZC_CODE_OTA_FILE_END = 20,
+    ZC_CODE_OTA_END = 21,
     
     /*OTA Wifi Moudle Code*/
-    ZC_CODE_ZOTA_BEGIN,
-    ZC_CODE_ZOTA_FILE_BEGIN,      /*file name, len, version*/
-    ZC_CODE_ZOTA_FILE_CHUNK,
-    ZC_CODE_ZOTA_FILE_END,
-    ZC_CODE_ZOTA_END,
-    ZC_CODE_BC_INFO,
-    ZC_CODE_CLIENT_ACCESS_REQ,
-    ZC_CODE_CLIENT_ACCESS_RSP,
+    ZC_CODE_ZOTA_BEGIN = 22,
+    ZC_CODE_ZOTA_FILE_BEGIN = 23,      /*file name, len, version*/
+    ZC_CODE_ZOTA_FILE_CHUNK = 24,
+    ZC_CODE_ZOTA_FILE_END = 25,
+    ZC_CODE_ZOTA_END = 26,
+    ZC_CODE_BC_INFO = 27,
+    ZC_CODE_CLIENT_ACCESS_REQ = 28,
+    ZC_CODE_CLIENT_ACCESS_RSP = 29,
     
-    ZC_CODE_CLIENT_QUERY_REQ,
-    ZC_CODE_CLIENT_QUERY_RSP,
+    ZC_CODE_CLIENT_QUERY_REQ = 30,
+    ZC_CODE_CLIENT_QUERY_RSP = 31,
 
-    ZC_CODE_TOKEN_SET,
+    ZC_CODE_TOKEN_SET = 32,
 }ZC_MsgCode;
 
 typedef enum 
@@ -241,6 +249,19 @@ typedef struct
     u8 u8Pad[2];
     //u8 DeviceId[0];
 }ZC_BlackWhiteClientList;
+
+typedef struct
+{
+    u32 u32TraceSwitch;     //Trace data switch, 1:open, 0:close,default 0
+    u32 u32SecSwitch;       //Sec data switch, 1:open, 0:close, 2:close RSA, default 1
+    u32 u32WifiConfig;      //Use Config SSID,password,1:open, 0:close, default 0
+    u32 u32TestAddrConfig;  //connect with test url,1:open, 0:"test.ablecloud.cn", 2:use u32IpAddr, default 0
+    u8  u8Ssid[ZC_SSID_MAX_LEN];
+    u8  u8Password[ZC_PASSWORD_MAX_LEN];
+    u32 u32IpAddr;
+    u8  u8CloudAddr[ZC_CLOUD_ADDR_MAX_LEN];
+    u8  u8CloudKey[ZC_CLOUD_KEY_MAX_LEN];
+}ZC_Configuration;
 
 /******************************* Option definition***********************************/
 

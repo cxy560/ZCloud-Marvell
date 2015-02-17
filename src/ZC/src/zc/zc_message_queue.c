@@ -250,5 +250,73 @@ u32 MSG_RecvData(MSG_Buffer *pstruRecvBuffer, u8 *pu8Data, u32 u32DataLen)
     
 
 }
+/*************************************************
+* Function: MSG_RecvDataFromCloud
+* Description: 
+* Author: cxy 
+* Returns: 
+* Parameter: 
+* History:
+*************************************************/
+void MSG_RecvDataFromCloud(u8 *pu8Data, u32 u32DataLen)
+{
+    u32 u32RetVal;
+    u16 u16PlainLen;
+    u32RetVal = MSG_RecvData(&g_struRecvBuffer, pu8Data, u32DataLen);
+
+    if (ZC_RET_OK == u32RetVal)
+    {
+        if (MSG_BUFFER_FULL == g_struRecvBuffer.u8Status)
+        {
+            u32RetVal = SEC_Decrypt((ZC_SecHead*)g_struRecvBuffer.u8MsgBuffer, 
+                g_struRecvBuffer.u8MsgBuffer + sizeof(ZC_SecHead), g_u8MsgBuildBuffer, &u16PlainLen);
+
+            /*copy data*/
+            memcpy(g_struRecvBuffer.u8MsgBuffer, g_u8MsgBuildBuffer, u16PlainLen);
+
+            g_struRecvBuffer.u32Len = u16PlainLen;
+            if (ZC_RET_OK == u32RetVal)
+            {
+                u32RetVal = MSG_PushMsg(&g_struRecvQueue, (u8*)&g_struRecvBuffer);
+            }
+        }
+    }
+    
+    return;
+}
+
+/*************************************************
+* Function: MSG_SendDataToCloud
+* Description: 
+* Author: cxy 
+* Returns: 
+* Parameter: 
+* History:
+*************************************************/
+void MSG_SendDataToCloud(u8 *pu8Connection)
+{
+    PTC_Connection *pstruConnection = (PTC_Connection *)pu8Connection;
+    MSG_Buffer *pstruBuf = NULL;
+    ZC_SendParam struParam;
+
+    u16 u16DataLen; 
+    pstruBuf = (MSG_Buffer *)MSG_PopMsg(&g_struSendQueue); 
+    
+    if (NULL == pstruBuf)
+    {
+        return;
+    }
+    
+    u16DataLen = pstruBuf->u32Len; 
+    struParam.u8NeedPoll = 0;
+    g_struProtocolController.pstruMoudleFun->pfunSendTcpData(pstruConnection->u32Socket, pstruBuf->u8MsgBuffer, u16DataLen, &struParam);
+ 
+    ZC_Printf("send data len = %d\n", u16DataLen);
+    pstruBuf->u8Status = MSG_BUFFER_IDLE;
+    pstruBuf->u32Len = 0;
+    return;
+}
+
 
 /******************************* FILE END ***********************************/
+

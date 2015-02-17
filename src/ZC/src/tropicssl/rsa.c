@@ -45,9 +45,6 @@
 
 #include "rsa.h"
 
-#include <stdlib.h>
-#include <string.h>
-#include <stdio.h>
 #include <zc_common.h>
 /*
 * Initialize an RSA context

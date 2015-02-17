@@ -13,9 +13,6 @@
 #include <zc_sec_engine.h>
  
 
-u32 g_u32TraceSwitch = 0;
-u32  g_u32LoopFlag = 0;
-u32  g_u32SecSwitch = 0;
 
 /*************************************************
 * Function: ZC_TraceData
@@ -28,7 +25,7 @@ u32  g_u32SecSwitch = 0;
 void ZC_TraceData(u8* pData, u32 Len)
 {
     u32 Index;
-    if (0 == g_u32TraceSwitch)
+    if (0 == g_struZcConfigDb.struSwitchInfo.u32TraceSwitch)
     {
         return;
     }
@@ -56,5 +53,29 @@ void ZC_TraceData(u8* pData, u32 Len)
     ZC_Printf("\n++++++++++++++++++++++++++++++++++++++++++++++++\n");
 }
 
+/*************************************************
+* Function: ZC_Rand
+* Description: 
+* Author: cxy 
+* Returns: 
+* Parameter: 
+* History:
+*************************************************/
+void ZC_Rand(u8 *pu8Rand)
+{
+    u32 u32Rand;
+    u32 u32Index; 
+    for (u32Index = 0; u32Index < 10; u32Index++)
+    {
+        u32Rand = rand();
+        pu8Rand[u32Index * 4] = ((u8)u32Rand % 26) + 65;
+        pu8Rand[u32Index * 4 + 1] = ((u8)(u32Rand >> 8) % 26) + 65;
+        pu8Rand[u32Index * 4 + 2] = ((u8)(u32Rand >> 16) % 26) + 65;
+        pu8Rand[u32Index * 4 + 3] = ((u8)(u32Rand >> 24) % 26) + 65;        
+    }
+}
+
+
+/******************************* FILE END ***********************************/
 
 

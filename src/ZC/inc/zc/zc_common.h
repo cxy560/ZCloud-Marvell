@@ -11,7 +11,6 @@
 #ifndef  __ZC_COMMON_H__ 
 #define  __ZC_COMMON_H__
 
-#include <string.h>
 #include <zc_module_config.h>
 
 typedef signed   char                       s8;                                 
@@ -57,10 +56,7 @@ typedef volatile unsigned int               vu32;
     (((u32)(n)& 0x00ff0000) >> 8) | \
     (((u32)(n)& 0x0000ff00) << 8) | \
     (((u32)(n)& 0x000000ff) << 24))
-
-#endif 
-
-
+#endif
 
 
 
@@ -70,6 +66,9 @@ extern "C" {
 
 void ZC_TraceData(u8* pData, u32 Len);
 unsigned short crc16_ccitt(const unsigned char *buf, unsigned int len);	
+int rand(void);
+void ZC_ConfigPara(u8 *pu8Data);
+void ZC_Rand(u8 *pu8Rand);
 
 #ifdef __cplusplus
 }

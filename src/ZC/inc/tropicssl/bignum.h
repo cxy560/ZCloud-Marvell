@@ -35,7 +35,7 @@
 #ifndef TROPICSSL_BIGNUM_H
 #define TROPICSSL_BIGNUM_H
 
-#include <stdio.h>
+//#include <stdio.h>
 
 #define TROPICSSL_ERR_MPI_FILE_IO_ERROR                     -0x0002
 #define TROPICSSL_ERR_MPI_BAD_INPUT_DATA                    -0x0004
@@ -432,3 +432,5 @@ extern "C" {
 }
 #endif
 #endif				/* bignum.h */
+
+

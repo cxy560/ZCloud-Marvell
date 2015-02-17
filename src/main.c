@@ -22,6 +22,7 @@
 #include <zc_protocol_controller.h>
 #include <zc_marvell_adpter.h>
 #include <wm_net.h>
+#include <wlan.h>
 
 
 /* Thread handle */
@@ -33,7 +34,6 @@ static os_thread_stack_define(app_stack, 8 * 1024);
 static os_thread_stack_define(uart_thread_stack, 5 * 2048);
 
 extern PTC_ProtocolCon  g_struProtocolController;
-u32 g_u32GloablIp;
 
 mdev_t *g_uartdev;
 extern ZC_UartBuffer g_struUartBuffer;
@@ -117,7 +117,7 @@ static void ablecloud_main(os_thread_arg_t data)
         
         if (PCT_STATE_DISCONNECT_CLOUD == g_struProtocolController.u8MainState)
         {
-            net_close(fd);
+            close(fd);
             u32Timer = rand();
             u32Timer = (PCT_TIMER_INTERVAL_RECONNECT) * (u32Timer % 10 + 1);
             PCT_ReconnectCloud(&g_struProtocolController, u32Timer);
@@ -126,9 +126,9 @@ static void ablecloud_main(os_thread_arg_t data)
         }
         else
         {
-            HF_SendDataToCloud(&g_struProtocolController.struCloudConnection);
+            MSG_SendDataToCloud((u8*)&g_struProtocolController.struCloudConnection);
         }
-        HF_SendBc();
+        ZC_SendBc();
     } 
 
 	return;
@@ -142,7 +142,7 @@ int common_event_handler(int event, void *data)
 {
 	int ret;
 	static bool is_cloud_started;
-    struct wlan_network WlanInfo;
+    struct wlan_ip_config struIpAddr;
 	switch (event) {
 	case AF_EVT_WLAN_INIT_DONE:
 		ret = psm_cli_init();
@@ -161,8 +161,9 @@ int common_event_handler(int event, void *data)
         HF_ReadDataFormFlash();
 		break;
 	case AF_EVT_NORMAL_CONNECTED:
-        app_network_get_nw(&WlanInfo);
-        g_u32GloablIp = WlanInfo.ip.ipv4.address;
+        wlan_get_address(&struIpAddr);
+        g_u32GloablIp = struIpAddr.ipv4.address;
+        g_u32GloablIp = ZC_HTONL(g_u32GloablIp);
 		if (!is_cloud_started) {
 			ret = os_thread_create(&app_thread,  /* thread handle */
 				"ablecloud",/* thread name */

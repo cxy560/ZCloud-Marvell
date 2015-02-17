@@ -48,9 +48,9 @@
 #include "bignum.h"
 #include "bn_mul.h"
 
-#include <string.h>
-#include <stdlib.h>
-#include <stdarg.h>
+//#include <string.h>
+//#include <stdlib.h>
+//#include <stdarg.h>
 #include <zc_common.h>
 
 #define ciL	   ((int) sizeof(t_int))	/* chars in limb  */
@@ -220,7 +220,7 @@ int mpi_size(const mpi * X)
 {
 	return ((mpi_msb(X) + 7) >> 3);
 }
-
+#ifdef ZC_OFF_LINETEST
 /*
  * Convert an ASCII character to digit value
  */
@@ -240,6 +240,8 @@ static int mpi_get_digit(t_int * d, int radix, char c)
 
 	return (0);
 }
+
+
 /*
  * Import from an ASCII string
  */
@@ -290,7 +292,6 @@ cleanup:
 
 	return (ret);
 }
-#ifdef ZC_OFF_LINETEST
 /*
  * Helper to write the digits high-order first
  */
