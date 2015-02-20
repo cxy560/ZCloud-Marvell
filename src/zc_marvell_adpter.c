@@ -445,7 +445,7 @@ void HF_CloudRecvfunc()
             }
             else
             {
-                ZC_Printf("accept client = %d", connfd);
+                ZC_Printf("accept client = %d\n", connfd);
             }
         }
     }
