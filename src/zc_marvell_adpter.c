@@ -607,6 +607,7 @@ void HF_BcInit()
     setsockopt(g_Bcfd, SOL_SOCKET,SO_BROADCAST,&tmp,sizeof(tmp)); 
 
     bind(g_Bcfd, (struct sockaddr*)&addr, sizeof(addr)); 
+    g_struProtocolController.u16SendBcNum = 0;
 
     memset((char*)&struRemoteAddr,0,sizeof(struRemoteAddr));
     struRemoteAddr.sin_family = AF_INET; 

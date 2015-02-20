@@ -177,6 +177,9 @@ int common_event_handler(int event, void *data)
 		break;
     case AF_EVT_PROV_DONE:
         app_ezconnect_provisioning_stop();
+    case AF_EVT_NORMAL_LINK_LOST:
+        HF_Sleep();
+        HF_BcInit();
 	default:
 		break;
 	}
