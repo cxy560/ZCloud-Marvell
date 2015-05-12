@@ -55,6 +55,7 @@ struct partition_entry *g_passive;
 extern psm_hnd_t psm_get_handle(void);
 extern void psm_erase(int argc, char **argv);
 extern int app_network_set_nw_state(int state);
+u32 g_u32BcSleepCount = 800;
 
 /*************************************************
 * Function: HF_ReadDataFormFlash
@@ -496,22 +497,23 @@ u32 HF_ConnectToCloud(PTC_Connection *pstruConnection)
     struct sockaddr_in addr;
     struct hostent *addr_tmp = NULL;
     int retval;
-    
+    u16 port;
     memset((char*)&addr,0,sizeof(addr));
-    if (1 == g_struZcConfigDb.struSwitchInfo.u32TestAddrConfig)
+    
+    if (1 == g_struZcConfigDb.struSwitchInfo.u32ServerAddrConfig)
     {
-        ZC_Printf("test cloud\n");
-        retval = net_gethostbyname((const char *)"test.ablecloud.cn", &addr_tmp);
-    }
-    else if (2 == g_struZcConfigDb.struSwitchInfo.u32TestAddrConfig)
-    {
-        ZC_Printf("test cloud 2\n");
+        port = g_struZcConfigDb.struSwitchInfo.u16ServerPort;
+        addr.sin_addr.s_addr = htonl(g_struZcConfigDb.struSwitchInfo.u32ServerIp);
         retval = WM_SUCCESS;
     }
     else
     {
+        port = ZC_CLOUD_PORT;
         retval = net_gethostbyname((const char *)g_struZcConfigDb.struCloudInfo.u8CloudAddr, &addr_tmp);
+        memcpy(&addr.sin_addr.s_addr, addr_tmp->h_addr_list[0], addr_tmp->h_length);
     }
+
+
     
     if (WM_SUCCESS != retval)
     {
@@ -519,15 +521,7 @@ u32 HF_ConnectToCloud(PTC_Connection *pstruConnection)
     }
     
     addr.sin_family = AF_INET;
-    addr.sin_port = htons(ZC_CLOUD_PORT);
-    if (2 == g_struZcConfigDb.struSwitchInfo.u32TestAddrConfig)
-    {
-        addr.sin_addr.s_addr = htonl(g_struZcConfigDb.struSwitchInfo.u32ServerIp);
-    }
-    else
-    {
-        memcpy(&addr.sin_addr.s_addr, addr_tmp->h_addr_list[0], addr_tmp->h_length);
-    }
+    addr.sin_port = htons(port);
     fd = net_socket(AF_INET, SOCK_STREAM, 0);
 
     if(fd<0)
@@ -536,8 +530,14 @@ u32 HF_ConnectToCloud(PTC_Connection *pstruConnection)
     if (connect(fd, (struct sockaddr *)&addr, sizeof(addr))< 0)
     {
         close(fd);
+        if(g_struProtocolController.struCloudConnection.u32ConnectionTimes++>20)
+        {
+           g_struZcConfigDb.struSwitchInfo.u32ServerAddrConfig = 0;
+        }
+        
         return ZC_RET_ERROR;
     }
+    g_struProtocolController.struCloudConnection.u32ConnectionTimes = 0;
 
     ZC_Printf("connect ok!\n");
     g_struProtocolController.struCloudConnection.u32Socket = fd;
