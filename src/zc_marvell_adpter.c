@@ -462,6 +462,47 @@ void HF_CloudRecvfunc()
     }
 }
 /*************************************************
+* Function: HF_HexToString
+* Description: 
+* Author: cxy 
+* Returns: 
+* Parameter: 
+* History:
+*************************************************/
+void HF_HexToString(u8 *StringBuf,u8* HexBuf,u8 len)
+{
+  u8 i;
+  u8 *xad;
+
+  // Display the extended address.
+  xad = HexBuf;
+
+  for (i = 0; i < len*2; xad++)
+  {
+    u8 ch;
+    ch = (*xad >> 4) & 0x0F;
+    StringBuf[i++] = ch + (( ch < 10 ) ? '0' : '7');
+    ch = *xad & 0x0F;
+    StringBuf[i++] = ch + (( ch < 10 ) ? '0' : '7');
+  }
+}
+
+/*************************************************
+* Function: HF_GetMac
+* Description: 
+* Author: cxy 
+* Returns: 
+* Parameter: 
+* History:
+*************************************************/
+void HF_GetMac(u8 *pu8Mac)
+{
+	uint8_t mymac[6];	
+	wlan_get_mac_address(mymac);
+    HF_HexToString(pu8Mac, mymac, 6);
+}
+
+/*************************************************
 * Function: HF_Rand
 * Description: 
 * Author: cxy 
@@ -642,6 +683,7 @@ void HF_Init()
     g_struHfAdapter.pfunStopTimer = HF_StopTimer;
     g_struHfAdapter.pfunWriteFlash = HF_WriteDataToFlash;
     g_struHfAdapter.pfunRest = HF_Rest;
+    g_struHfAdapter.pfunGetMac = HF_GetMac;
     g_u16TcpMss = 1000;
     PCT_Init(&g_struHfAdapter);
 
