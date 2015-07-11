@@ -462,32 +462,6 @@ void HF_CloudRecvfunc()
     }
 }
 /*************************************************
-* Function: HF_HexToString
-* Description: 
-* Author: cxy 
-* Returns: 
-* Parameter: 
-* History:
-*************************************************/
-void HF_HexToString(u8 *StringBuf,u8* HexBuf,u8 len)
-{
-  u8 i;
-  u8 *xad;
-
-  // Display the extended address.
-  xad = HexBuf;
-
-  for (i = 0; i < len*2; xad++)
-  {
-    u8 ch;
-    ch = (*xad >> 4) & 0x0F;
-    StringBuf[i++] = ch + (( ch < 10 ) ? '0' : '7');
-    ch = *xad & 0x0F;
-    StringBuf[i++] = ch + (( ch < 10 ) ? '0' : '7');
-  }
-}
-
-/*************************************************
 * Function: HF_GetMac
 * Description: 
 * Author: cxy 
@@ -497,31 +471,9 @@ void HF_HexToString(u8 *StringBuf,u8* HexBuf,u8 len)
 *************************************************/
 void HF_GetMac(u8 *pu8Mac)
 {
-	uint8_t mymac[6];	
-	wlan_get_mac_address(mymac);
-    HF_HexToString(pu8Mac, mymac, 6);
-}
-
-/*************************************************
-* Function: HF_Rand
-* Description: 
-* Author: cxy 
-* Returns: 
-* Parameter: 
-* History:
-*************************************************/
-void HF_Rand(u8 *pu8Rand)
-{
-    u32 u32Rand;
-    u32 u32Index; 
-    for (u32Index = 0; u32Index < 10; u32Index++)
-    {
-        u32Rand = rand();
-        pu8Rand[u32Index * 4] = ((u8)u32Rand % 26) + 65;
-        pu8Rand[u32Index * 4 + 1] = ((u8)(u32Rand >> 8) % 26) + 65;
-        pu8Rand[u32Index * 4 + 2] = ((u8)(u32Rand >> 16) % 26) + 65;
-        pu8Rand[u32Index * 4 + 3] = ((u8)(u32Rand >> 24) % 26) + 65;        
-    }
+    uint8_t mymac[6];	
+    wlan_get_mac_address(mymac);
+    ZC_HexToString(pu8Mac, mymac, 6);
 }
 
 /*************************************************
