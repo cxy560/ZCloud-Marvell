@@ -288,9 +288,26 @@ u32 HF_SendDataToMoudle(u8 *pu8Data, u16 u16DataLen)
 *************************************************/
 void HF_Rest(void)
 {
+    g_struZcConfigDb.struSwitchInfo.u32ServerAddrConfig = 0;
+    HF_WriteDataToFlash((u8*)&g_struZcConfigDb, sizeof(ZC_ConfigDB));
+
     (void)app_network_set_nw_state(APP_NETWORK_NOT_PROVISIONED);
     app_reboot(REASON_USER_REBOOT);
 }
+
+/*************************************************
+* Function: HF_Reboot
+* Description: 
+* Author: cxy 
+* Returns: 
+* Parameter: 
+* History:
+*************************************************/
+void HF_Reboot(void)
+{
+    app_reboot(REASON_USER_REBOOT);
+}
+
 /*************************************************
 * Function: HF_SendTcpData
 * Description: 
@@ -636,6 +653,8 @@ void HF_Init()
     g_struHfAdapter.pfunWriteFlash = HF_WriteDataToFlash;
     g_struHfAdapter.pfunRest = HF_Rest;
     g_struHfAdapter.pfunGetMac = HF_GetMac;
+    g_struHfAdapter.pfunReboot = HF_Reboot;
+    
     g_u16TcpMss = 1000;
     PCT_Init(&g_struHfAdapter);
 
