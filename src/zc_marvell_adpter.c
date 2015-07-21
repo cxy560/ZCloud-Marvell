@@ -305,6 +305,8 @@ void HF_Rest(void)
 *************************************************/
 void HF_Reboot(void)
 {
+    os_thread_sleep(os_msec_to_ticks(500));
+
     app_reboot(REASON_USER_REBOOT);
 }
 
